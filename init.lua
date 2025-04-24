@@ -657,6 +657,27 @@ require('lazy').setup({
       --  - capabilities (table): Override fields in capabilities. Can be used to disable certain LSP features.
       --  - settings (table): Override the default settings passed when initializing the server.
       --        For example, to see the options for `lua_ls`, you could go to: https://luals.github.io/wiki/settings/
+      require('lspconfig').yamlls.setup {
+        settings = {
+          yaml = {
+            schemas = {
+              -- AWS CloudFormation Schema URL
+              ['https://raw.githubusercontent.com/awslabs/goformation/master/schema/cloudformation.schema.json'] = '*.yaml',
+            },
+            customTags = {
+              '!Ref scalar',
+              '!Sub scalar',
+              '!GetAtt scalar',
+              '!Join sequence',
+              '!FindInMap sequence',
+              '!Select sequence',
+              '!Split sequence',
+              '!Base64 scalar',
+            },
+          },
+        },
+      }
+
       local servers = {
         clangd = {},
         gopls = {},
