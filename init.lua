@@ -657,26 +657,6 @@ require('lazy').setup({
       --  - capabilities (table): Override fields in capabilities. Can be used to disable certain LSP features.
       --  - settings (table): Override the default settings passed when initializing the server.
       --        For example, to see the options for `lua_ls`, you could go to: https://luals.github.io/wiki/settings/
-      require('lspconfig').yamlls.setup {
-        settings = {
-          yaml = {
-            schemas = {
-              -- AWS CloudFormation Schema URL
-              ['https://raw.githubusercontent.com/awslabs/goformation/master/schema/cloudformation.schema.json'] = '*.yaml',
-            },
-            customTags = {
-              '!Ref scalar',
-              '!Sub scalar',
-              '!GetAtt scalar',
-              '!Join sequence',
-              '!FindInMap sequence',
-              '!Select sequence',
-              '!Split sequence',
-              '!Base64 scalar',
-            },
-          },
-        },
-      }
 
       local servers = {
         clangd = {},
@@ -727,20 +707,18 @@ require('lazy').setup({
       })
       require('mason-tool-installer').setup { ensure_installed = ensure_installed }
 
+      -- Keep mason and mason-tool-installer as you already have them
       require('mason-lspconfig').setup {
-        ensure_installed = {}, -- explicitly set to an empty table (Kickstart populates installs via mason-tool-installer)
+        ensure_installed = {},
         automatic_installation = false,
-        handlers = {
-          function(server_name)
-            local server = servers[server_name] or {}
-            -- This handles overriding only values explicitly passed
-            -- by the server configuration above. Useful when disabling
-            -- certain features of an LSP (for example, turning off formatting for ts_ls)
-            server.capabilities = vim.tbl_deep_extend('force', {}, capabilities, server.capabilities or {})
-            require('lspconfig')[server_name].setup(server)
-          end,
-        },
       }
+
+      -- Register configs and enable them using the new API
+      for server_name, server in pairs(servers) do
+        server.capabilities = vim.tbl_deep_extend('force', {}, capabilities, server.capabilities or {})
+        vim.lsp.config(server_name, server) -- define/extend the config
+        vim.lsp.enable(server_name) -- enable it for its filetypes
+      end
     end,
   },
 
@@ -779,10 +757,12 @@ require('lazy').setup({
       formatters_by_ft = {
         lua = { 'stylua' },
         -- Conform can also run multiple formatters sequentially
-        -- python = { "isort", "black" },
+        python = { 'isort', 'black' },
         --
         -- You can use 'stop_after_first' to run the first available formatter from the list
         -- javascript = { "prettierd", "prettier", stop_after_first = true },
+        typescript = { 'prettierd', 'prettier', stop_after_first = true },
+        java = { 'google-java-format' },
       },
     },
   },
@@ -897,11 +877,30 @@ require('lazy').setup({
             group_index = 0,
           },
           { name = 'nvim_lsp' },
+          { name = 'buffer' },
           { name = 'luasnip' },
           { name = 'path' },
           { name = 'nvim_lsp_signature_help' },
         },
       }
+
+      cmp.setup.filetype({ 'yml' }, {
+        sources = cmp.config.sources({
+          { name = 'nvim_lsp' }, -- CloudFormation schema LSP
+          {
+            name = 'buffer',
+            keyword_length = 1,
+            option = {
+              get_bufnrs = function()
+                return vim.api.nvim_list_bufs()
+              end,
+            },
+          }, -- fall back to words in this file
+        }, {
+          { name = 'path' }, -- still allow file‐path completion
+          { name = 'luasnip' }, -- and snippets if you want
+        }),
+      })
     end,
   },
 
@@ -1043,3 +1042,58 @@ require('lazy').setup({
 
 -- The line beneath this is called `modeline`. See `:help modeline`
 -- vim: ts=2 sts=2 sw=2 et
+
+-- At the very end of your init.lua:
+-- ensure that the yaml LSP is installed:
+vim.cmd [[silent! !mason install yaml-language-server]]
+
+vim.lsp.config('yamlls', {
+  settings = {
+    yaml = {
+      schemaStore = { enable = true, url = 'https://www.schemastore.org/api/json/catalog.json' },
+      enableSchemaRequest = true,
+      schemas = {
+        ['https://raw.githubusercontent.com/awslabs/goformation/v5.4.5/schema/cloudformation.schema.json'] = {
+          '*.template.yml',
+          '*.yml',
+        },
+      },
+      completion = true,
+      hover = true,
+      validate = true,
+      customTags = {
+        '!Ref',
+        '!Sub',
+        '!ImportValue',
+        '!GetAtt',
+        '!Cidr',
+        '!Base64',
+        '!And sequence',
+        '!Or sequence',
+        '!Not sequence',
+        '!Equals sequence',
+        '!If sequence',
+        '!FindInMap sequence',
+        '!Join sequence',
+        '!Split sequence',
+        '!Select sequence',
+        '!GetAZs sequence',
+        '!Transform mapping',
+      },
+    },
+  },
+})
+vim.lsp.enable 'yamlls'
+
+return {
+  'nvim-neo-tree/neo-tree.nvim',
+  opts = {
+    filesystem = {
+      filtered_items = {
+        visible = true, -- show hidden files
+        hide_dotfiles = false, -- do not hide dotfiles
+        hide_gitignored = false, -- optionally show .gitignored files too
+      },
+    },
+  },
+}
